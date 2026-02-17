@@ -78,6 +78,11 @@ Why:
 - avoids empty UX in sparse areas by progressively widening radius
 - worked reliably in testing with current API data
 
+### Caching, Rate Limiting, and Telemetry
+- Commu responses are cached by request fingerprint (`lat`, `long`, `distance`, `page`, page size) with configurable TTL (`COMMU_CACHE_TTL_SECONDS`).
+- Search endpoint is rate-limited (`throttle:commu-search`) with configurable limit (`COMMU_RATE_LIMIT_PER_MINUTE`) to protect upstream APIs and Bedrock costs.
+- Telemetry logs are emitted for Commu queries including cache hit/miss and request latency (`latency_ms`).
+
 ### Selected Notice fields
 Queried these fields from `noticesWhereDistance.data`:
 - `id`
@@ -114,6 +119,9 @@ Approach:
 - filter to recent notices (30 days)
 - send compact JSON of up to 20 recent posts to Bedrock
 - request 2-4 sentence summary focused on common themes and relative frequency
+- cache summary responses by content fingerprint (town + model + prompt version + notice payload hash) with configurable TTL
+- use cache locking to avoid duplicate concurrent Bedrock summary generation for identical inputs
+- retry transient Bedrock failures with small bounded retries
 - if recent posts exist, summarize based on recent posts
 - if recent posts are 0 but fetched posts exist, summarize based on fetched posts and label that basis in UI
 - if there are no fetched posts at all, show a “not enough data” style message
@@ -124,18 +132,18 @@ Handled obvious cases requested in task:
 - no geocoding result
 - no notices returned
 - Bedrock failure fallback message
+- distinct Commu API auth/network/upstream failure messaging (not treated as empty data)
 
 ## UI / UX Notes
 - Simple but structured server-rendered UI with clear cards and metadata
 - Notice metadata labels are normalized (human-readable type/category labels)
 - Search results support URL-based pagination (`/search?town=...&page=...&distance=...`)
 - Pagination stays within the selected distance radius for consistent browsing
+- Pagination controls appear when more than one page of results is available (`lastPage > 1`)
 - Dynamic client-side filters for loaded results: category and type
 
 ## What I'd Improve Next
 - Add focused feature tests with mocked Geocoding/Commu/Bedrock responses
-- Add lightweight caching for geocoding + nearby notice lookups
 - Add richer summary UI (confidence indicator, top themes extracted as chips)
 - Add interactive filtering by category/type and recency window
 - Add request logging/observability for API failures and latency
-# Commu-Practical-Task-Laravel-

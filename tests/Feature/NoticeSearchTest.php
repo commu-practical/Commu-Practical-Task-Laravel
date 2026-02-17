@@ -6,6 +6,7 @@ use App\Services\AreaSummaryService;
 use App\Services\CommuNoticeService;
 use App\Services\GeocodingService;
 use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\Config;
 use PHPUnit\Framework\Attributes\DataProvider;
 use Tests\TestCase;
 
@@ -171,6 +172,43 @@ class NoticeSearchTest extends TestCase
             ->assertSee('No geocoding result found for that town.');
     }
 
+    public function test_search_shows_auth_error_message_when_commu_api_auth_fails(): void
+    {
+        $this->mock(GeocodingService::class, function ($mock): void {
+            $mock->shouldReceive('geocodeTown')
+                ->once()
+                ->andReturn([
+                    'name' => 'Helsinki',
+                    'lat' => 60.1699,
+                    'long' => 24.9384,
+                ]);
+        });
+
+        $this->mock(CommuNoticeService::class, function ($mock): void {
+            $mock->shouldReceive('searchNearbyNotices')
+                ->once()
+                ->andReturn([
+                    'successful' => false,
+                    'distance' => 25,
+                    'notices' => collect(),
+                    'error_code' => 'auth_error',
+                    'error_message' => 'Unauthorized',
+                    'paginator' => [
+                        'count' => 0,
+                        'total' => 0,
+                        'currentPage' => 1,
+                        'lastPage' => 1,
+                        'perPage' => 25,
+                        'hasMorePages' => false,
+                    ],
+                ]);
+        });
+
+        $this->get('/search?town=Helsinki')
+            ->assertStatus(200)
+            ->assertSee('Commu API authentication failed. Refresh COMMU_BEARER_TOKEN and try again.');
+    }
+
     public function test_search_supports_get_pagination_urls(): void
     {
         $this->mock(GeocodingService::class, function ($mock): void {
@@ -254,6 +292,47 @@ class NoticeSearchTest extends TestCase
             ->assertStatus(200)
             ->assertSee('Fallback summary from fetched posts.')
             ->assertSee('Based on 1 fetched posts (no posts in recent window).');
+    }
+
+    public function test_search_route_is_rate_limited(): void
+    {
+        Config::set('services.commu.rate_limit_per_minute', 1);
+
+        $this->mock(GeocodingService::class, function ($mock): void {
+            $mock->shouldReceive('geocodeTown')->once()->andReturn([
+                'name' => 'Helsinki',
+                'lat' => 60.1699,
+                'long' => 24.9384,
+            ]);
+        });
+
+        $notices = collect([
+            [
+                'id' => 'n-rate',
+                'title' => 'Rate limit sample',
+                'description' => 'Desc',
+                'created_at' => now()->subDay()->toISOString(),
+                'categories' => ['main' => ['key' => 'events'], 'sub' => []],
+                'type' => 'NEED_FREE',
+            ],
+        ]);
+
+        $this->mock(CommuNoticeService::class, function ($mock) use ($notices): void {
+            $mock->shouldReceive('searchNearbyNotices')->once()->andReturn($this->successfulSearchResult($notices));
+            $mock->shouldReceive('recentNotices')->once()->andReturn($notices);
+        });
+
+        $this->mock(AreaSummaryService::class, function ($mock): void {
+            $mock->shouldReceive('buildSummary')->once()->andReturn('Summary.');
+        });
+
+        $this->withServerVariables(['REMOTE_ADDR' => '10.0.0.99'])
+            ->get('/search?town=Helsinki')
+            ->assertStatus(200);
+
+        $this->withServerVariables(['REMOTE_ADDR' => '10.0.0.99'])
+            ->get('/search?town=Helsinki')
+            ->assertStatus(429);
     }
 
     public static function finnishTownProvider(): array

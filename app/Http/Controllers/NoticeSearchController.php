@@ -61,6 +61,25 @@ class NoticeSearchController extends Controller
         $usedDistance = (int) $searchResult['distance'];
         $paginatorInfo = $searchResult['paginator'];
 
+        if (! $searchResult['successful']) {
+            $message = match ($searchResult['error_code'] ?? null) {
+                'auth_error' => 'Commu API authentication failed. Refresh COMMU_BEARER_TOKEN and try again.',
+                'network_error' => 'Network error when contacting Commu API. Please try again shortly.',
+                default => 'Unable to fetch help posts from Commu API right now. Please try again.',
+            };
+
+            return view('notices.index', [
+                'town' => $town,
+                'location' => $location,
+                'allNotices' => collect(),
+                'noticesPaginator' => $this->buildPaginator(collect(), $paginatorInfo, $town, $usedDistance),
+                'recentNotices' => collect(),
+                'summary' => null,
+                'error' => $message,
+                'usedDistance' => $usedDistance,
+            ]);
+        }
+
         if ($allNotices->isEmpty()) {
             return view('notices.index', [
                 'town' => $town,

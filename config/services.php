@@ -48,6 +48,10 @@ return [
         'distance_km' => env('COMMU_DISTANCE_KM', 25),
         'page_size' => env('COMMU_PAGE_SIZE', 25),
         'recent_days' => env('COMMU_RECENT_DAYS', 30),
+        'cache_ttl_seconds' => env('COMMU_CACHE_TTL_SECONDS', 180),
+        'retry_attempts' => env('COMMU_RETRY_ATTEMPTS', 2),
+        'retry_sleep_ms' => env('COMMU_RETRY_SLEEP_MS', 200),
+        'rate_limit_per_minute' => env('COMMU_RATE_LIMIT_PER_MINUTE', 30),
     ],
 
     'bedrock' => [
@@ -58,6 +62,11 @@ return [
         'max_tokens' => env('BEDROCK_MAX_TOKENS', 220),
         'temperature' => env('BEDROCK_TEMPERATURE', 0.2),
         'top_k' => env('BEDROCK_TOP_K', 250),
+        'cache_ttl_seconds' => env('BEDROCK_SUMMARY_CACHE_TTL_SECONDS', 21600),
+        'prompt_version' => env('BEDROCK_PROMPT_VERSION', 'v1'),
+        'retry_attempts' => env('BEDROCK_RETRY_ATTEMPTS', 2),
+        'retry_sleep_ms' => env('BEDROCK_RETRY_SLEEP_MS', 300),
+        'lock_wait_seconds' => env('BEDROCK_SUMMARY_LOCK_WAIT_SECONDS', 3),
     ],
 
 ];
